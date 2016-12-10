@@ -37,6 +37,8 @@ Fill out the Custom Inputfield Dependencies module config according to your need
 * You can add rows as needed using the "Add another row" button.
 * Debug mode: normally the results of the selected Hanna tags are hidden in Page Edit, but you can check "Debug mode" to show the fields and check what the Hanna tags are returning.
 
+Add your show-if/require-if dependencies for one or more fields in the relevant template(s).
+
 ## License
 
 Released under Mozilla Public License v2. See file LICENSE for details.
