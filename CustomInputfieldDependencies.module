@@ -1,0 +1,285 @@
+<?php
+
+/**
+ *
+ * Custom Inputfield Dependencies
+ *
+ * @author Robin Sallis
+ *
+ * ProcessWire 3.x
+ * Copyright (C) 2011 by Ryan Cramer
+ * Licensed under GNU/GPL v2, see LICENSE.TXT
+ *
+ * http://www.processwire.com
+ * http://www.ryancramer.com
+ *
+ */
+
+class CustomInputfieldDependencies extends WireData implements Module, ConfigurableModule {
+
+	/**
+	 * Module information
+	 */
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'Custom Inputfield Dependencies',
+			'version' => 1,
+			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by custom PHP/API code. Requires the Hanna Code module.',
+			'requires' => 'TextformatterHannaCode',
+			'autoload' => "template=admin",
+		);
+	}
+
+	/**
+	 * Install
+	 */
+	public function ___install() {
+		// create one row code to get things started
+		$this->modules->saveModuleConfigData($this->className, array('codes' => uniqid() . '|') );
+	}
+
+	/**
+	 * Ready
+	 */
+	public function ready() {
+		// add css and js for module config page
+		$info = $this->getModuleInfo();
+		$version = (int) $info['version'];
+		$config = $this->config;
+		if($this->input->get->name == $this->className) {
+			$config->styles->add($config->urls->{$this->className} . "module_config.css?v=$version");
+			$config->scripts->add($config->urls->{$this->className} . "module_config.js?v=$version");
+		}
+
+		// hooks
+		$this->addHookBefore('Modules::saveModuleConfigData', $this, 'processConfig');
+		if(!$this->debug_mode) $this->addHookAfter('ProcessPageEdit::execute', $this, 'addStyles');
+		$this->addHookAfter('ProcessPageEdit::buildFormContent', $this, 'appendToForm');
+	}
+
+	/**
+	 * Add script and styles
+	 */
+	public function addStyles($event) {
+		// return if ProcessPageEdit is being loaded via AJAX (image field)
+		if($this->config->ajax) return;
+
+		// add css for hiding custom dependency fields
+		$event->return .= "li.{$this->className} { display:none !important; }</style>";
+	}
+
+	/**
+	 * Append fields to form
+	 */
+	public function appendToForm($event) {
+		$page = $event->object->getPage();
+		$form = $event->return;
+		$template = $page->template->name;
+
+		$cfg =  $this->modules->getModuleConfigData($this->className());
+		// early return if template is not in module config
+		if(!in_array($template, $cfg)) return;
+
+		// Hanna tag delimiters
+		$data = $this->modules->getModuleConfigData('TextformatterHannaCode');
+		$open_tag = $data['openTag'] ?: TextformatterHannaCode::DEFAULT_OPEN_TAG;
+		$close_tag = $data['closeTag'] ?: TextformatterHannaCode::DEFAULT_CLOSE_TAG;
+		
+		$uniques = array();
+		foreach($cfg as $key => $value) {
+			if($value === $page->template->name) {
+				$uniques[] = substr($key, -13); // last 13 characters are the unique code
+			}
+		}
+		$hannas = array();
+		foreach($uniques as $unique) {
+			$hannas[] = $cfg["hanna_{$unique}"]; // get hanna tags applied to this template
+		}
+		$hannas = array_unique(array_filter($hannas)); // remove any empty or duplicate values
+		// create and append new fields with value of Hanna output
+		foreach($hannas as $hanna) {
+			$f = $this->modules->get('InputfieldText');
+			$f->name = "$hanna";
+			$value = "{$open_tag}$hanna{$close_tag}";
+			$this->modules->TextformatterHannaCode->formatValue($page, new Field(), $value);
+			$f->value = $value;
+			$f->wrapClass = $this->className;
+			$form->append($f);
+		}
+	}
+
+	/**
+	 * Process the config data on save
+	 */
+	public function processConfig($event) {
+		$module_name = $event->arguments('className');
+		$cfg = $event->arguments('configData');
+		if(is_object($module_name)) $module_name = $module_name->className();
+		if($module_name !== $this->className()) return;
+
+		// if the "Add another row" button was clicked
+		if($cfg['add_new']) {
+			$cfg['codes'] .= $cfg['unique'] . '|';
+		}
+
+		// if any rows were marked for deletion
+		$delete_codes = array();
+		foreach($cfg as $key => $value) {
+			if (strpos($key, 'delete_') === 0 && $value === 1) {
+				$delete_codes[] = substr($key, -13); // last 13 characters are the unique code;
+			}
+		}
+		if(count($delete_codes)) {
+			foreach($delete_codes as $delete_code) {
+				$cfg['codes'] = str_replace("$delete_code|", '', $cfg['codes']);
+			}
+			foreach($cfg as $key => $value) {
+				if($this->strposa($key, $delete_codes, 0)) {
+					unset($cfg[$key]);
+				}
+			}
+		}
+
+		// return processed config
+		$event->arguments('configData', $cfg);
+	}
+
+	/**
+	 * strpos() with array of strings as needle
+	 */
+	public function strposa($haystack, $needle, $offset=0) {
+		if(!is_array($needle)) $needle = array($needle);
+		foreach($needle as $query) {
+			if(strpos($haystack, $query, $offset) !== false) return true;
+		}
+		return false;
+	}
+
+
+	/**
+	 * Config inputfields
+	 */
+	public function getModuleConfigInputfields() {
+		$inputfields = new InputfieldWrapper();
+
+		$f_name = "debug_mode";
+		$f = $this->modules->get('InputfieldCheckbox');
+		$f->name = "debug_mode";
+		$f->label = $this->_('Debug mode');
+		$f->description = $this->_('Shows fields in Page Edit so you can check the value returned by the Hanna tag.');
+		$f->attr("checked", $this->$f_name === 1 ? "checked" : "");
+		$inputfields->add($f);
+
+		$inputfields->add( $this->makeCodes() );
+		$inputfields->add( $this->makeUnique() );
+
+		$codes = explode('|', rtrim($this->codes, '|'));
+		$i = 1;
+		foreach($codes as $code) {
+			if(!$code) break;
+			$inputfields->add( $this->makeFieldset($code, $i) );
+			$i++;
+		}
+
+		$inputfields->add( $this->makeAddNew() );
+
+		return $inputfields;
+	}
+
+	/**
+	 * Make codes field
+	 */
+	public function makeCodes() {
+		$f_name = 'codes';
+		$f = $this->modules->get('InputfieldTextarea');
+		$f->name = $f_name;
+		$f->value = $this->$f_name;
+		$f->collapsed = Inputfield::collapsedHidden;
+		return $f;
+	}
+
+	/**
+	 * Make unique field
+	 */
+	public function makeUnique() {
+		$f = $this->modules->get('InputfieldText');
+		$f->name = 'unique';
+		$f->value = uniqid();
+		$f->collapsed = Inputfield::collapsedHidden;
+		return $f;
+	}
+
+	/**
+	 * Make 'Add New' button
+	 */
+	public function makeAddNew() {
+		$f = $this->modules->get('InputfieldCheckbox');
+		$f->name = 'add_new';
+		$f->label = $this->_('Add another row');
+		return $f;
+	}
+
+	/**
+	 * Make fieldset
+	 */
+	public function makeFieldset($identifier, $number) {
+		$fieldset = $this->modules->get("InputfieldFieldset");
+		$fieldset->name = "row_{$identifier}";
+		$fieldset->label = $this->_('Custom dependency') . " $number";
+
+		$f = $this->makeTemplateSelect($identifier);
+		$fieldset->add($f);
+
+		$f = $this->makeHannaSelect($identifier);
+		$fieldset->add($f);
+
+		$f = $this->makeDeleteCheckbox($identifier);
+		$fieldset->add($f);
+
+		return $fieldset;
+	}
+
+	/**
+	 * Make checkbox for row deletion
+	 */
+	public function makeDeleteCheckbox($identifier) {
+		$f = $this->modules->get('InputfieldCheckbox');
+		$f->name = "delete_{$identifier}";
+		$f->label = $this->_('Delete');
+		return $f;
+	}
+
+	/**
+	 * Make select for template
+	 */
+	public function makeTemplateSelect($identifier) {
+		$f_name = "tpl_{$identifier}";
+		$f = $this->modules->get('InputfieldSelect');
+		$f->name = $f_name;
+		$f->label = $this->_('Template');
+		$f->columnWidth = 50;
+		foreach($this->templates as $select_option) {
+			$f->addOption($select_option->name, $select_option->label ?: $select_option->name);
+		}
+		$f->value = $this->$f_name;
+		return $f;
+	}
+
+	/**
+	 * Make select for Hanna tag
+	 */
+	public function makeHannaSelect($identifier) {
+		$f_name = "hanna_{$identifier}";
+		$f = $this->modules->get('InputfieldSelect');
+		$f->name = $f_name;
+		$f->label = $this->_('Hanna tag that echos field value');
+		$f->columnWidth = 50;
+		$result = $this->db->query("SELECT name, code FROM hanna_code ORDER BY name");
+		while ($row = $result->fetch_row()) {
+			if(strpos($row[0], '_') === 0) $f->addOption($row[0]); // only hanna tags that start with an underscore
+		}
+		$f->value = $this->$f_name;
+		return $f;
+	}
+
+}
