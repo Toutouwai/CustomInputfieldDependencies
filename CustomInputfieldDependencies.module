@@ -65,7 +65,7 @@ class CustomInputfieldDependencies extends WireData implements Module, Configura
 		if($this->config->ajax) return;
 
 		// add css for hiding custom dependency fields
-		$event->return .= "li.{$this->className} { display:none !important; }</style>";
+		$event->return .= "<style>li.{$this->className} { display:none !important; }</style>";
 	}
 
 	/**
