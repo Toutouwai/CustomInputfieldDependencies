@@ -14,7 +14,7 @@ The name of Hanna tags that you want to use with Custom Inputfield Dependencies 
 
 ## Example
 
-Take an example: I want site editors to type some summary text and select a representative image for pages using the basic_page template. The summary text/image will be used to create feature boxes on parent pages that link to the children. So I don't need editors to fill out these fields on top-level pages directly below the Home page, but only for pages at level 2 or deeper. So I create a Hanna tag "_parents_count":
+Take an example: I want site editors to type some summary text and select a representative image for pages using the basic_page template. The summary text/image will be used to create feature boxes on parent pages that link to the children. I don't need editors to fill out these fields on top-level pages directly below the Home page, but only for pages at level 2 or deeper. So I create a Hanna tag "_parents_count":
 
 `<?php
 echo $page->parents->count();`
@@ -27,12 +27,11 @@ Now I can create show-if and require-if dependencies for my summary fields so th
 
 ## Usage
 
-1. [Install](http://modules.processwire.com/install-uninstall/) the Custom Inputfield Dependencies module.
+[Install](http://modules.processwire.com/install-uninstall/) the Custom Inputfield Dependencies module.
 
-2. Create one or more Hanna tags that echo a result that you will make an inputfield dependent on. The name of Hanna tags that you want to use with Custom Inputfield Dependencies must start with an underscore. 
+Create one or more Hanna tags that echo a result that you will make an inputfield dependent on. The name of Hanna tags that you want to use with Custom Inputfield Dependencies must start with an underscore. 
  
-3. Fill out the Custom Inputfield Dependencies module config according to your needs:
-
+Fill out the Custom Inputfield Dependencies module config according to your needs:
 * Template: the template that contains the inputfield you want to create a custom dependency for.
 * Hanna tag that echos field value: a Hanna tag that you created previously for the purpose.
 * You can add rows as needed using the "Add another row" button.
