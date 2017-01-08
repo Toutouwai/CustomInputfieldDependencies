@@ -1,43 +1,52 @@
 # Custom Inputfield Dependencies
 
-A module for ProcessWire CMS/CMF. Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by custom PHP/API code. Requires the Hanna Code module.
+A module for ProcessWire CMS/CMF. Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.
 
 ## Overview
 
-Custom Inputfield Dependencies uses the Hanna Code module as a convenient way to execute any arbitrary PHP/API code at runtime. The idea is that you create Hanna Code tags that echo some result that you want to make an inputfield dependent on. The $page variable in your Hanna tag code will refer the page being edited.
+Custom Inputfield Dependencies adds several new settings options to the "Input" tab of "Edit Field". These are described below.
 
-For each Hanna tag selected in Custom Inputfield Dependencies a hidden inputfield will be added to Page Edit for the connected template - the hidden inputfield is named the same as the Hanna tag and its value is the result of the Hanna tag. This allows other inputfields to be made dependent on the value of the hidden inputfield.
-
-Note that the value of the hidden inputfield is only calculated once at the time Page Edit loads - if your Hanna tag code refers to fields in the page being edited then changes will not be recalculated until the page is saved and Page Edit reloaded.
-
-The name of Hanna tags that you want to use with Custom Inputfield Dependencies must start with an underscore.
-
-## Example
-
-Take an example: I want site editors to type some summary text and select a representative image for pages using the basic_page template. The summary text/image will be used to create feature boxes on parent pages that link to the children. I don't need editors to fill out these fields on top-level pages directly below the Home page, but only for pages at level 2 or deeper. So I create a Hanna tag "_parents_count":
-
-`<?php
-echo $page->parents->count();`
-
-I connect this Hanna tag with the basic_page template in the Custom Inputfield Dependencies module config.
-
-Now I can create show-if and require-if dependencies for my summary fields so they are only shown and required for pages at level 2 or deeper:
-
-`_parents_count>1`
+Note that the visibility or required status of fields determined by the module is calculated once at the time Page Edit loads. If your dependency settings refer to fields in the page being edited then changes will not be recalculated until the page is saved and Page Edit reloaded.
 
 ## Usage
 
 [Install](http://modules.processwire.com/install-uninstall/) the Custom Inputfield Dependencies module.
 
-Create one or more Hanna tags that echo a result that you will make an inputfield dependent on. The name of Hanna tags that you want to use with Custom Inputfield Dependencies must start with an underscore. 
- 
-Fill out the Custom Inputfield Dependencies module config according to your needs:
-* Template: the template that contains the inputfield you want to create a custom dependency for.
-* Hanna tag that echos field value: a Hanna tag that you created previously for the purpose.
-* You can add rows as needed using the "Add another row" button.
-* Debug mode: normally the results of the selected Hanna tags are hidden in Page Edit, but you can check "Debug mode" to show the fields and check what the Hanna tags are returning.
+Optional: for nice code highlighting of custom PHP install [InputfieldAceExtended](http://modules.processwire.com/modules/inputfield-ace-extended/) v1.2.0 or newer (currently available on the ['dev' branch](https://github.com/owzim/pw-inputfield-ace-extended/tree/dev) of the GitHub repo).
 
-Add your show-if/require-if dependencies for one or more fields in the relevant template(s).
+The custom inputfield dependencies are set on the "Input" tab of "Edit Field".
+
+!['Visibility' settings](img/visibility.png)
+
+!['Required' settings](img/required.png)
+
+###Visibility
+
+####Show only if page is matched by custom find
+
+Use InputfieldSelector to create a $pages->find() query. If the edited page is matched by the selector then the field is shown.
+
+![Custom find settings](img/custom-find.png)
+
+####Show only if page is matched by selector
+
+As above, but the selector string may be entered manually.
+
+![Selector string settings](img/selector-string.png)
+
+####Show only if custom PHP returns true
+
+Enter custom PHP/API code – if the statement **returns boolean true** then the field is shown. `$page` and `$pages` are available as local variables – other API variables may be accessed with `$this`, e.g. `$this->config`
+
+![Custom PHP settings](img/custom-php.png)
+
+In most cases `$page` refers to the page being edited, but note that if the field is inside a repeater then `$page` will be the repeater page. As there could conceivably be cases where you want to use the repeater page in your custom PHP the module does not forcibly set `$page` to be the edited page. Instead, a helper function `getEditedPage($page)` is available if you want to get the edited page regardless of if the field in inside a repeater or not.
+
+    $edited_page = $this->getEditedPage($page);
+
+###Required
+
+The settings inputfields are the same as for Visibility above, but are used to determine if the field has 'required' status on the page being edited.
 
 ## License
 

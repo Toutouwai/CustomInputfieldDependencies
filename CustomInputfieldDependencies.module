@@ -5,6 +5,7 @@
  * Custom Inputfield Dependencies
  *
  * @author Robin Sallis
+ * @credits Thanks to Adrian Jones for ideas and helpful feedback
  *
  * ProcessWire 3.x
  * Copyright (C) 2011 by Ryan Cramer
@@ -15,7 +16,7 @@
  *
  */
 
-class CustomInputfieldDependencies extends WireData implements Module, ConfigurableModule {
+class CustomInputfieldDependencies extends WireData implements Module {
 
 	/**
 	 * Module information
@@ -23,262 +24,210 @@ class CustomInputfieldDependencies extends WireData implements Module, Configura
 	public static function getModuleInfo() {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
-			'version' => 1,
-			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by custom PHP/API code. Requires the Hanna Code module.',
-			'requires' => 'TextformatterHannaCode',
+			'version' => 2,
+			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
 			'autoload' => "template=admin",
 		);
-	}
-
-	/**
-	 * Install
-	 */
-	public function ___install() {
-		// create one row code to get things started
-		$this->modules->saveModuleConfigData($this->className, array('codes' => uniqid() . '|') );
 	}
 
 	/**
 	 * Ready
 	 */
 	public function ready() {
-		// add css and js for module config page
-		$info = $this->getModuleInfo();
-		$version = (int) $info['version'];
-		$config = $this->config;
-		if($this->input->get->name == $this->className) {
-			$config->styles->add($config->urls->{$this->className} . "module_config.css?v=$version");
-			$config->scripts->add($config->urls->{$this->className} . "module_config.js?v=$version");
-		}
-
 		// hooks
-		$this->addHookBefore('Modules::saveModuleConfigData', $this, 'processConfig');
-		if(!$this->debug_mode) $this->addHookAfter('ProcessPageEdit::execute', $this, 'addStyles');
-		$this->addHookAfter('ProcessPageEdit::buildFormContent', $this, 'appendToForm');
+		$this->addHookAfter('Field::getConfigInputfields', $this, 'addFieldOptions');
+		$this->addHookAfter('Field::getInputfield', $this, 'evaluateCustomDependencies');
 	}
 
 	/**
-	 * Add script and styles
+	 * Evaluate any custom inputfield dependencies
 	 */
-	public function addStyles($event) {
-		// return if ProcessPageEdit is being loaded via AJAX (image field)
-		if($this->config->ajax) return;
+	public function evaluateCustomDependencies($event) {
+		if($this->page->process !== 'ProcessPageEdit') return;
 
-		// add css for hiding custom dependency fields
-		$event->return .= "<style>li.{$this->className} { display:none !important; }</style>";
-	}
+		// variables
+		$field = $event->object;
+		$inputfield = $event->return;
+		$page = $event->arguments('page');
+		$pages = $this->pages; // mainly to make this variable available as $pages in custom PHP
 
-	/**
-	 * Append fields to form
-	 */
-	public function appendToForm($event) {
-		$page = $event->object->getPage();
-		$form = $event->return;
-		$template = $page->template->name;
-
-		$cfg =  $this->modules->getModuleConfigData($this->className());
-		// early return if template is not in module config
-		if(!in_array($template, $cfg)) return;
-
-		// Hanna tag delimiters
-		$data = $this->modules->getModuleConfigData('TextformatterHannaCode');
-		$open_tag = $data['openTag'] ?: TextformatterHannaCode::DEFAULT_OPEN_TAG;
-		$close_tag = $data['closeTag'] ?: TextformatterHannaCode::DEFAULT_CLOSE_TAG;
-		
-		$uniques = array();
-		foreach($cfg as $key => $value) {
-			if($value === $page->template->name) {
-				$uniques[] = substr($key, -13); // last 13 characters are the unique code
+		// evaluate show-if conditions
+		if($field->show_if_custom_find) {
+			$matches = $pages->find($field->show_if_custom_find);
+			if(!$matches->has($page)) {
+				$inputfield->collapsed = Inputfield::collapsedHidden;
 			}
 		}
-		$hannas = array();
-		foreach($uniques as $unique) {
-			$hannas[] = $cfg["hanna_{$unique}"]; // get hanna tags applied to this template
-		}
-		$hannas = array_unique(array_filter($hannas)); // remove any empty or duplicate values
-		// create and append new fields with value of Hanna output
-		foreach($hannas as $hanna) {
-			$f = $this->modules->get('InputfieldText');
-			$f->name = "$hanna";
-			$value = "{$open_tag}$hanna{$close_tag}";
-			$this->modules->TextformatterHannaCode->formatValue($page, new Field(), $value);
-			$f->value = $value;
-			$f->wrapClass = $this->className;
-			$form->append($f);
-		}
-	}
-
-	/**
-	 * Process the config data on save
-	 */
-	public function processConfig($event) {
-		$module_name = $event->arguments('className');
-		$cfg = $event->arguments('configData');
-		if(is_object($module_name)) $module_name = $module_name->className();
-		if($module_name !== $this->className()) return;
-
-		// if the "Add another row" button was clicked
-		if($cfg['add_new']) {
-			$cfg['codes'] .= $cfg['unique'] . '|';
-		}
-
-		// if any rows were marked for deletion
-		$delete_codes = array();
-		foreach($cfg as $key => $value) {
-			if (strpos($key, 'delete_') === 0 && $value === 1) {
-				$delete_codes[] = substr($key, -13); // last 13 characters are the unique code;
+		if($field->show_if_selector) {
+			$matches = $pages->find($field->show_if_selector);
+			if(!$matches->has($page)) {
+				$inputfield->collapsed = Inputfield::collapsedHidden;
 			}
 		}
-		if(count($delete_codes)) {
-			foreach($delete_codes as $delete_code) {
-				$cfg['codes'] = str_replace("$delete_code|", '', $cfg['codes']);
-			}
-			foreach($cfg as $key => $value) {
-				if($this->strposa($key, $delete_codes, 0)) {
-					unset($cfg[$key]);
-				}
+		if($field->show_if_custom_php) {
+			$result = eval($field->show_if_custom_php);
+			if($result !== true) {
+				$inputfield->collapsed = Inputfield::collapsedHidden;
 			}
 		}
-
-		// return processed config
-		$event->arguments('configData', $cfg);
-	}
-
-	/**
-	 * strpos() with array of strings as needle
-	 */
-	public function strposa($haystack, $needle, $offset=0) {
-		if(!is_array($needle)) $needle = array($needle);
-		foreach($needle as $query) {
-			if(strpos($haystack, $query, $offset) !== false) return true;
+		// evaluate required-if conditions
+		if($field->required && $field->required_if_custom_find) {
+			$matches = $pages->find($field->required_if_custom_find);
+			if(!$matches->has($page)) {
+				$inputfield->required = 0;
+			}
 		}
-		return false;
+		if($field->required && $field->required_if_selector) {
+			$matches = $pages->find($field->required_if_selector);
+			if(!$matches->has($page)) {
+				$inputfield->required = 0;
+			}
+		}
+		if($field->required && $field->required_if_custom_php) {
+			$result = eval($field->required_if_custom_php);
+			if($result === true) {
+				$inputfield->required = 1;
+			} else {
+				$inputfield->required = 0;
+			}
+		}
 	}
 
+	/**
+	 * Helper function for fields in a repeater
+	 */
+	public function getEditedPage($page) {
+		if($page instanceof RepeaterPage) {
+			return $this->getEditedPage($page->getForPage());
+		} else {
+			return $page;
+		}
+	}
 
 	/**
-	 * Config inputfields
+	 * Add field options
 	 */
-	public function getModuleConfigInputfields() {
-		$inputfields = new InputfieldWrapper();
+	public function addFieldOptions($event) {
+		// the field being edited
+		$field = $event->object;
 
-		$f_name = "debug_mode";
-		$f = $this->modules->get('InputfieldCheckbox');
-		$f->name = "debug_mode";
-		$f->label = $this->_('Debug mode');
-		$f->description = $this->_('Shows fields in Page Edit so you can check the value returned by the Hanna tag.');
-		$f->attr("checked", $this->$f_name === 1 ? "checked" : "");
-		$inputfields->add($f);
+		// the inputfield wrapper
+		$wrapper = $event->return;
 
-		$inputfields->add( $this->makeCodes() );
-		$inputfields->add( $this->makeUnique() );
+		// change to template context of field if fieldgroup ID present in input
+		$fieldgroup_id = (int) $this->input->post->fieldgroup_id ?: (int) $this->input->get->fieldgroup_id;
+		$fieldgroup = $this->fieldgroups->get($fieldgroup_id);
+		if($fieldgroup) $field = $fieldgroup->getFieldContext($field->name);
 
-		$codes = explode('|', rtrim($this->codes, '|'));
-		$i = 1;
-		foreach($codes as $code) {
-			if(!$code) break;
-			$inputfields->add( $this->makeFieldset($code, $i) );
-			$i++;
+		// add extra show-if fields
+		$f_show_if = $wrapper->getChildByName('showIf');
+		$f = $this->makeCustomPhpField('show_if_custom_php');
+		$f->value = $field->show_if_custom_php;
+		$wrapper->insertAfter($f, $f_show_if);
+
+		$f = $this->makeSelectorField('show_if_selector');
+		$f->value = $field->show_if_selector;
+		$wrapper->insertAfter($f, $f_show_if);
+
+		$f = $this->makeCustomFindField('show_if_custom_find');
+		$f->value = $field->show_if_custom_find;
+		$wrapper->insertAfter($f, $f_show_if);
+
+		$fs_visibility = $wrapper->getChildByName('visibility');
+		if($field->show_if_custom_find || $field->show_if_selector || $field->show_if_custom_php) {
+			$fs_visibility->collapsed = Inputfield::collapsedNo;
 		}
 
-		$inputfields->add( $this->makeAddNew() );
+		// add extra required-if fields
+		$f_required_if = $wrapper->getChildByName('requiredIf');
+		$f = $this->makeCustomPhpField('required_if_custom_php');
+		$f->value = $field->required_if_custom_php;
+		$wrapper->insertAfter($f, $f_required_if);
 
-		return $inputfields;
+		$f = $this->makeSelectorField('required_if_selector');
+		$f->value = $field->required_if_selector;
+		$wrapper->insertAfter($f, $f_required_if);
+
+		$f = $this->makeCustomFindField('required_if_custom_find');
+		$f->value = $field->required_if_custom_find;
+		$wrapper->insertAfter($f, $f_required_if);
+
 	}
 
 	/**
-	 * Make codes field
+	 * Make custom find field
 	 */
-	public function makeCodes() {
-		$f_name = 'codes';
-		$f = $this->modules->get('InputfieldTextarea');
-		$f->name = $f_name;
-		$f->value = $this->$f_name;
-		$f->collapsed = Inputfield::collapsedHidden;
+	public function makeCustomFindField($field_name) {
+		if($field_name === 'show_if_custom_find') {
+			$label = $this->_('Show only if page is matched by custom find');
+			$description = $this->_('Add one or more fields below to create a $pages->find() query. If the edited page is matched by the selector then the field is shown. If you prefer to enter this manually, use the "Show only if page is matched by selector" option below instead.');
+			$icon = 'question-circle';
+		} elseif($field_name === 'required_if_custom_find') {
+			$label = $this->_('Required only if page is matched by custom find');
+			$description = $this->_('Add one or more fields below to create a $pages->find() query. If the edited page is matched by the selector then the field is required. If you prefer to enter this manually, use the "Required only if page is matched by selector" option below instead.');
+			$icon = 'asterisk';
+		}
+		$f = $this->modules->get('InputfieldSelector');
+		$f->name = $field_name;
+		$f->label = $label;
+		$f->description = $description;
+		$f->icon = $icon;
+		if($field_name === 'required_if_custom_find') $f->showIf = "required>0";
+		$f->collapsed = Inputfield::collapsedBlank;
 		return $f;
 	}
 
 	/**
-	 * Make unique field
+	 * Make selector field
 	 */
-	public function makeUnique() {
+	public function makeSelectorField($field_name) {
+		if($field_name === 'show_if_selector') {
+			$label = $this->_('Show only if page is matched by selector');
+			$description = $this->_('This selector will be passed to a $pages->find("your selector"); statement. If the edited page is matched by the selector then the field is shown.');
+			$icon = 'question-circle';
+		} elseif($field_name === 'required_if_selector') {
+			$label = $this->_('Required only if page is matched by selector');
+			$description = $this->_('This selector will be passed to a $pages->find("your selector"); statement. If the edited page is matched by the selector then the field is required.');
+			$icon = 'asterisk';
+		}
 		$f = $this->modules->get('InputfieldText');
-		$f->name = 'unique';
-		$f->value = uniqid();
-		$f->collapsed = Inputfield::collapsedHidden;
+		$f->name = $field_name;
+		$f->label = $label;
+		$f->description = $description;
+		$f->icon = $icon;
+		if($field_name === 'required_if_selector') $f->showIf = "required>0";
+		$f->collapsed = Inputfield::collapsedBlank;
 		return $f;
 	}
 
 	/**
-	 * Make 'Add New' button
+	 * Make custom PHP field
 	 */
-	public function makeAddNew() {
-		$f = $this->modules->get('InputfieldCheckbox');
-		$f->name = 'add_new';
-		$f->label = $this->_('Add another row');
-		return $f;
-	}
-
-	/**
-	 * Make fieldset
-	 */
-	public function makeFieldset($identifier, $number) {
-		$fieldset = $this->modules->get("InputfieldFieldset");
-		$fieldset->name = "row_{$identifier}";
-		$fieldset->label = $this->_('Custom dependency') . " $number";
-
-		$f = $this->makeTemplateSelect($identifier);
-		$fieldset->add($f);
-
-		$f = $this->makeHannaSelect($identifier);
-		$fieldset->add($f);
-
-		$f = $this->makeDeleteCheckbox($identifier);
-		$fieldset->add($f);
-
-		return $fieldset;
-	}
-
-	/**
-	 * Make checkbox for row deletion
-	 */
-	public function makeDeleteCheckbox($identifier) {
-		$f = $this->modules->get('InputfieldCheckbox');
-		$f->name = "delete_{$identifier}";
-		$f->label = $this->_('Delete');
-		return $f;
-	}
-
-	/**
-	 * Make select for template
-	 */
-	public function makeTemplateSelect($identifier) {
-		$f_name = "tpl_{$identifier}";
-		$f = $this->modules->get('InputfieldSelect');
-		$f->name = $f_name;
-		$f->label = $this->_('Template');
-		$f->columnWidth = 50;
-		foreach($this->templates as $select_option) {
-			$f->addOption($select_option->name, $select_option->label ?: $select_option->name);
+	public function makeCustomPhpField($field_name) {
+		if($field_name === 'show_if_custom_php') {
+			$label = $this->_('Show only if custom PHP returns true');
+			$description = $this->_('This statement has access to the $page and $pages API variables, where $page refers to the page being edited. If the snippet returns boolean true then the field is shown.');
+			$icon = 'question-circle';
+		} elseif($field_name === 'required_if_custom_php') {
+			$label = $this->_('Required only if custom PHP returns true');
+			$description = $this->_('This statement has access to the $page and $pages API variables, where $page refers to the page being edited. If the snippet returns boolean true then the field is required.');
+			$icon = 'asterisk';
 		}
-		$f->value = $this->$f_name;
-		return $f;
-	}
-
-	/**
-	 * Make select for Hanna tag
-	 */
-	public function makeHannaSelect($identifier) {
-		$f_name = "hanna_{$identifier}";
-		$f = $this->modules->get('InputfieldSelect');
-		$f->name = $f_name;
-		$f->label = $this->_('Hanna tag that echos field value');
-		$f->columnWidth = 50;
-		$result = $this->db->query("SELECT name, code FROM hanna_code ORDER BY name");
-		while ($row = $result->fetch_row()) {
-			if(strpos($row[0], '_') === 0) $f->addOption($row[0]); // only hanna tags that start with an underscore
+		if($this->modules->isInstalled('InputfieldAceExtended')) {
+			$f = $this->modules->get('InputfieldAceExtended');
+			$f->mode = 'php';
+			$f->modes = array('php');
+			$f->theme = 'monokai';
+		} else {
+			$f = $this->modules->get('InputfieldTextarea');
 		}
-		$f->value = $this->$f_name;
+		$f->name = $field_name;
+		$f->label = $label;
+		$f->description = $description;
+		$f->rows = 5;
+		$f->icon = $icon;
+		if($field_name === 'required_if_custom_php') $f->showIf = "required>0";
+		$f->collapsed = Inputfield::collapsedBlank;
 		return $f;
 	}
 
