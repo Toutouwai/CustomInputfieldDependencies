@@ -31,6 +31,16 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	}
 
 	/**
+	 * Upgrade
+	 */
+	public function ___upgrade($fromVersion, $toVersion) {
+		// Upgrade from v0.0.1
+		if($fromVersion === 1) {
+			$this->warning("You are upgrading from v0.0.1 – a breaking change was introduced in v0.0.2 and you must redefine your custom dependencies (sorry). See the module support thread in the forums.");
+		}
+	}
+
+	/**
 	 * Ready
 	 */
 	public function ready() {
