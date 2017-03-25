@@ -20,21 +20,21 @@ The custom inputfield dependencies are set on the "Input" tab of "Edit Field".
 
 !['Required' settings](https://raw.githubusercontent.com/Toutouwai/CustomInputfieldDependencies/master/img/required.png)
 
-###Visibility
+### Visibility
 
-####Show only if page is matched by custom find
+#### Show only if page is matched by custom find
 
 Use InputfieldSelector to create a $pages->find() query. If the edited page is matched by the selector then the field is shown.
 
 ![Custom find settings](https://raw.githubusercontent.com/Toutouwai/CustomInputfieldDependencies/master/img/custom-find.png)
 
-####Show only if page is matched by selector
+#### Show only if page is matched by selector
 
 As above, but the selector string may be entered manually.
 
 ![Selector string settings](https://raw.githubusercontent.com/Toutouwai/CustomInputfieldDependencies/master/img/selector-string.png)
 
-####Show only if custom PHP returns true
+#### Show only if custom PHP returns true
 
 Enter custom PHP/API code – if the statement **returns boolean true** then the field is shown. `$page` and `$pages` are available as local variables – other API variables may be accessed with `$this`, e.g. `$this->config`
 
@@ -44,7 +44,7 @@ In most cases `$page` refers to the page being edited, but note that if the fiel
 
     $edited_page = $this->getEditedPage($page);
 
-###Required
+### Required
 
 The settings inputfields are the same as for Visibility above, but are used to determine if the field has 'required' status on the page being edited.
 
