@@ -24,7 +24,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	public static function getModuleInfo() {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
-			'version' => 2,
+			'version' => 3,
 			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
 			'autoload' => "template=admin",
 		);
@@ -131,6 +131,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 
 		// add extra show-if fields
 		$f_show_if = $wrapper->getChildByName('showIf');
+		if(!$f_show_if) return; // return if no showIf field, e.g. Fieldset in Tab
 		$f = $this->makeCustomPhpField('show_if_custom_php');
 		$f->value = $field->show_if_custom_php;
 		$wrapper->insertAfter($f, $f_show_if);
