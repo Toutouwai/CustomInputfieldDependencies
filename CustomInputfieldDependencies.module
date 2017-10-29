@@ -24,8 +24,10 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	public static function getModuleInfo() {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
-			'version' => 4,
+			'version' => 5,
 			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
+			'href' => 'https://github.com/Toutouwai/CustomInputfieldDependencies',
+			'icon' => 'eye',
 			'autoload' => "template=admin",
 		);
 	}
@@ -44,24 +46,25 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	 * Ready
 	 */
 	public function ready() {
-		// hooks
 		$this->addHookAfter('Field::getConfigInputfields', $this, 'addFieldOptions');
 		$this->addHookAfter('Field::getInputfield', $this, 'evaluateCustomDependencies');
 	}
 
 	/**
 	 * Evaluate any custom inputfield dependencies
+	 *
+	 * @param HookEvent $event
 	 */
-	public function evaluateCustomDependencies($event) {
+	public function evaluateCustomDependencies(HookEvent $event) {
 		if($this->page->process !== 'ProcessPageEdit') return;
 
-		// variables
+		// Variables
 		$field = $event->object;
 		$inputfield = $event->return;
 		$page = $event->arguments('page');
 		$pages = $this->pages; // mainly to make this variable available as $pages in custom PHP
 
-		// evaluate show-if conditions
+		// Evaluate show-if conditions
 		if($field->show_if_custom_find) {
 			$matches = $pages->find($field->show_if_custom_find);
 			if(!$matches->has($page)) {
@@ -80,7 +83,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 				$inputfield->collapsed = Inputfield::collapsedHidden;
 			}
 		}
-		// evaluate required-if conditions
+		// Evaluate required-if conditions
 		if($field->required && $field->required_if_custom_find) {
 			$matches = $pages->find($field->required_if_custom_find);
 			if(!$matches->has($page)) {
@@ -105,6 +108,9 @@ class CustomInputfieldDependencies extends WireData implements Module {
 
 	/**
 	 * Helper function for fields in a repeater
+	 *
+	 * @param Page $page
+	 * @return Page
 	 */
 	public function getEditedPage($page) {
 		if($page instanceof RepeaterPage) {
@@ -116,58 +122,65 @@ class CustomInputfieldDependencies extends WireData implements Module {
 
 	/**
 	 * Add field options
+	 *
+	 * @param HookEvent $event
 	 */
-	public function addFieldOptions($event) {
-		// the field being edited
+	public function addFieldOptions(HookEvent $event) {
+		// The field being edited
 		$field = $event->object;
 
-		// the inputfield wrapper
+		// The inputfield wrapper
 		$wrapper = $event->return;
 
-		// change to template context of field if fieldgroup ID present in input
+		// Change to template context of field if fieldgroup ID present in input
 		$fieldgroup_id = (int) $this->input->post->fieldgroup_id ?: (int) $this->input->get->fieldgroup_id;
 		$fieldgroup = $this->fieldgroups->get($fieldgroup_id);
 		if($fieldgroup) $field = $fieldgroup->getFieldContext($field->name);
 
-		// add extra show-if fields
-		$f_show_if = $wrapper->getChildByName('showIf');
-		if(!$f_show_if) return; // return if no showIf field, e.g. Fieldset in Tab
+		// Add extra show-if fields
+		$f_before = $wrapper->getChildByName('showIf');
+		// FieldsetTab is a special case
+		if(!$f_before && $field->type == 'FieldtypeFieldsetTabOpen') $f_before = $wrapper->getChildByName('visibility');
+		if(!$f_before) return; // return if no showIf field
 		$f = $this->makeCustomPhpField('show_if_custom_php');
 		$f->value = $field->show_if_custom_php;
-		$wrapper->insertAfter($f, $f_show_if);
+		$wrapper->insertAfter($f, $f_before);
 
 		$f = $this->makeSelectorField('show_if_selector');
 		$f->value = $field->show_if_selector;
-		$wrapper->insertAfter($f, $f_show_if);
+		$wrapper->insertAfter($f, $f_before);
 
 		$f = $this->makeCustomFindField('show_if_custom_find');
 		$f->value = $field->show_if_custom_find;
-		$wrapper->insertAfter($f, $f_show_if);
+		$wrapper->insertAfter($f, $f_before);
 
 		$fs_visibility = $wrapper->getChildByName('visibility');
 		if($field->show_if_custom_find || $field->show_if_selector || $field->show_if_custom_php) {
 			$fs_visibility->collapsed = Inputfield::collapsedNo;
 		}
 
-		// add extra required-if fields
-		$f_required_if = $wrapper->getChildByName('requiredIf');
-		if(!$f_required_if) return; // return if no requiredIf field, e.g. Fieldset
+		// Add extra required-if fields
+		$f_before = $wrapper->getChildByName('requiredIf');
+		if(!$f_before) return; // return if no requiredIf field, e.g. Fieldset
 		$f = $this->makeCustomPhpField('required_if_custom_php');
 		$f->value = $field->required_if_custom_php;
-		$wrapper->insertAfter($f, $f_required_if);
+		$wrapper->insertAfter($f, $f_before);
 
 		$f = $this->makeSelectorField('required_if_selector');
 		$f->value = $field->required_if_selector;
-		$wrapper->insertAfter($f, $f_required_if);
+		$wrapper->insertAfter($f, $f_before);
 
 		$f = $this->makeCustomFindField('required_if_custom_find');
 		$f->value = $field->required_if_custom_find;
-		$wrapper->insertAfter($f, $f_required_if);
+		$wrapper->insertAfter($f, $f_before);
 
 	}
 
 	/**
 	 * Make custom find field
+	 *
+	 * @param string $field_name
+	 * @return InputfieldSelector
 	 */
 	public function makeCustomFindField($field_name) {
 		if($field_name === 'show_if_custom_find') {
@@ -191,6 +204,9 @@ class CustomInputfieldDependencies extends WireData implements Module {
 
 	/**
 	 * Make selector field
+	 *
+	 * @param string $field_name
+	 * @return InputfieldText
 	 */
 	public function makeSelectorField($field_name) {
 		if($field_name === 'show_if_selector') {
@@ -214,6 +230,9 @@ class CustomInputfieldDependencies extends WireData implements Module {
 
 	/**
 	 * Make custom PHP field
+	 *
+	 * @param string $field_name
+	 * @return InputfieldTextarea|\InputfieldAceExtended
 	 */
 	public function makeCustomPhpField($field_name) {
 		if($field_name === 'show_if_custom_php') {
