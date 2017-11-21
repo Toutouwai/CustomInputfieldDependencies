@@ -24,7 +24,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	public static function getModuleInfo() {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
-			'version' => 5,
+			'version' => 6,
 			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
 			'href' => 'https://github.com/Toutouwai/CustomInputfieldDependencies',
 			'icon' => 'eye',
@@ -61,19 +61,19 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		// Variables
 		$field = $event->object;
 		$inputfield = $event->return;
-		$page = $event->arguments('page');
+		$page = $event->arguments(0);
 		$pages = $this->pages; // mainly to make this variable available as $pages in custom PHP
 
 		// Evaluate show-if conditions
 		if($field->show_if_custom_find) {
-			$matches = $pages->find($field->show_if_custom_find);
-			if(!$matches->has($page)) {
+			$matches = $pages->get("{$field->show_if_custom_find}, id={$page->id}");
+			if(!$matches->id) {
 				$inputfield->collapsed = Inputfield::collapsedHidden;
 			}
 		}
 		if($field->show_if_selector) {
-			$matches = $pages->find($field->show_if_selector);
-			if(!$matches->has($page)) {
+			$matches = $pages->get("{$field->show_if_selector}, id={$page->id}");
+			if(!$matches->id) {
 				$inputfield->collapsed = Inputfield::collapsedHidden;
 			}
 		}
@@ -85,14 +85,14 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		}
 		// Evaluate required-if conditions
 		if($field->required && $field->required_if_custom_find) {
-			$matches = $pages->find($field->required_if_custom_find);
-			if(!$matches->has($page)) {
+			$matches = $pages->get("{$field->required_if_custom_find}, id={$page->id}");
+			if(!$matches->id) {
 				$inputfield->required = 0;
 			}
 		}
 		if($field->required && $field->required_if_selector) {
-			$matches = $pages->find($field->required_if_selector);
-			if(!$matches->has($page)) {
+			$matches = $pages->get("{$field->required_if_selector}, id={$page->id}");
+			if(!$matches->id) {
 				$inputfield->required = 0;
 			}
 		}
