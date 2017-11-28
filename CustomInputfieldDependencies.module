@@ -24,13 +24,17 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	public static function getModuleInfo() {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
-			'version' => 6,
+			'version' => 7,
 			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
 			'href' => 'https://github.com/Toutouwai/CustomInputfieldDependencies',
 			'icon' => 'eye',
 			'autoload' => "template=admin",
 		);
 	}
+
+	protected $remove_fieldset_tabs = array();
+
+	protected $fields_in_hidden_fieldset = array();
 
 	/**
 	 * Upgrade
@@ -46,8 +50,9 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	 * Ready
 	 */
 	public function ready() {
-		$this->addHookAfter('Field::getConfigInputfields', $this, 'addFieldOptions');
 		$this->addHookAfter('Field::getInputfield', $this, 'evaluateCustomDependencies');
+		$this->addHookAfter('ProcessPageEdit::buildForm', $this, 'manipulatePageEdit');
+		$this->addHookAfter('Field::getConfigInputfields', $this, 'addFieldOptions');
 	}
 
 	/**
@@ -55,7 +60,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	 *
 	 * @param HookEvent $event
 	 */
-	public function evaluateCustomDependencies(HookEvent $event) {
+	protected function evaluateCustomDependencies(HookEvent $event) {
 		if($this->page->process !== 'ProcessPageEdit') return;
 
 		// Variables
@@ -64,25 +69,31 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		$page = $event->arguments(0);
 		$pages = $this->pages; // mainly to make this variable available as $pages in custom PHP
 
+		// Hide field if it is inside a hidden fieldset
+		if(isset($this->fields_in_hidden_fieldset[$page->id][$field->name])) {
+			$inputfield->collapsed = Inputfield::collapsedHidden;
+		} 
+
 		// Evaluate show-if conditions
 		if($field->show_if_custom_find) {
 			$matches = $pages->get("{$field->show_if_custom_find}, id={$page->id}");
 			if(!$matches->id) {
-				$inputfield->collapsed = Inputfield::collapsedHidden;
+				$this->removeInputfield($inputfield, $field, $page);
 			}
 		}
 		if($field->show_if_selector) {
 			$matches = $pages->get("{$field->show_if_selector}, id={$page->id}");
 			if(!$matches->id) {
-				$inputfield->collapsed = Inputfield::collapsedHidden;
+				$this->removeInputfield($inputfield, $field, $page);
 			}
 		}
 		if($field->show_if_custom_php) {
 			$result = eval($field->show_if_custom_php);
 			if($result !== true) {
-				$inputfield->collapsed = Inputfield::collapsedHidden;
+				$this->removeInputfield($inputfield, $field, $page);
 			}
 		}
+
 		// Evaluate required-if conditions
 		if($field->required && $field->required_if_custom_find) {
 			$matches = $pages->get("{$field->required_if_custom_find}, id={$page->id}");
@@ -107,6 +118,49 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	}
 
 	/**
+	 * Manipulate ProcessPageEdit (deal with FieldsetTab)
+	 *
+	 * @param HookEvent $event
+	 */
+	protected function manipulatePageEdit(HookEvent $event) {
+		$form = $event->return;
+		/* @var ProcessPageEdit $ppe */
+		$ppe = $event->object;
+		foreach($this->remove_fieldset_tabs as $tab_name) {
+			$fieldset_tab = $form->children("id=Inputfield_{$tab_name}")->first();
+			$form->children()->remove($fieldset_tab);
+			$ppe->removeTab("Inputfield_{$tab_name}");
+		}
+		$event->return = $form;
+	}
+
+	/**
+	 * Remove inputfield
+	 *
+	 * @param Inputfield $inputfield
+	 * @param Field $field
+	 */
+	protected function removeInputfield($inputfield, $field, $page) {
+		if($field->type == 'FieldtypeFieldsetTabOpen') {
+			$this->remove_fieldset_tabs[] = $field->name;
+		} elseif(in_array($field->type, array('FieldtypeFieldsetOpen', 'FieldtypeFieldsetGroup'))) {
+			$fieldset_start = false;
+			foreach($page->template->fields as $template_field) {
+				if($template_field === $field) {
+					$fieldset_start = true;
+				} elseif($template_field->name === "{$field->name}_END") {
+					break;
+				} elseif($fieldset_start) {
+					$this->fields_in_hidden_fieldset[$page->id][$template_field->name] = '';
+				}
+			}
+			$inputfield->collapsed = Inputfield::collapsedHidden;
+		} else {
+			$inputfield->collapsed = Inputfield::collapsedHidden;
+		}
+	}
+
+	/**
 	 * Helper function for fields in a repeater
 	 *
 	 * @param Page $page
@@ -125,7 +179,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	 *
 	 * @param HookEvent $event
 	 */
-	public function addFieldOptions(HookEvent $event) {
+	protected function addFieldOptions(HookEvent $event) {
 		// The field being edited
 		$field = $event->object;
 
@@ -182,7 +236,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	 * @param string $field_name
 	 * @return InputfieldSelector
 	 */
-	public function makeCustomFindField($field_name) {
+	protected function makeCustomFindField($field_name) {
 		if($field_name === 'show_if_custom_find') {
 			$label = $this->_('Show only if page is matched by custom find');
 			$description = $this->_('Add one or more fields below to create a $pages->find() query. If the edited page is matched by the selector then the field is shown. If you prefer to enter this manually, use the "Show only if page is matched by selector" option below instead.');
@@ -208,7 +262,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	 * @param string $field_name
 	 * @return InputfieldText
 	 */
-	public function makeSelectorField($field_name) {
+	protected function makeSelectorField($field_name) {
 		if($field_name === 'show_if_selector') {
 			$label = $this->_('Show only if page is matched by selector');
 			$description = $this->_('This selector will be passed to a $pages->find("your selector"); statement. If the edited page is matched by the selector then the field is shown.');
@@ -234,7 +288,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	 * @param string $field_name
 	 * @return InputfieldTextarea|\InputfieldAceExtended
 	 */
-	public function makeCustomPhpField($field_name) {
+	protected function makeCustomPhpField($field_name) {
 		if($field_name === 'show_if_custom_php') {
 			$label = $this->_('Show only if custom PHP returns true');
 			$description = $this->_('This statement has access to the $page and $pages API variables, where $page refers to the page being edited. If the snippet returns boolean true then the field is shown.');
