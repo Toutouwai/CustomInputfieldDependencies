@@ -24,7 +24,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	public static function getModuleInfo() {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
-			'version' => 7,
+			'version' => 8,
 			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
 			'href' => 'https://github.com/Toutouwai/CustomInputfieldDependencies',
 			'icon' => 'eye',
@@ -146,7 +146,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		} elseif(in_array($field->type, array('FieldtypeFieldsetOpen', 'FieldtypeFieldsetGroup'))) {
 			$fieldset_start = false;
 			foreach($page->template->fields as $template_field) {
-				if($template_field === $field) {
+				if($template_field->id === $field->id) {
 					$fieldset_start = true;
 				} elseif($template_field->name === "{$field->name}_END") {
 					break;
