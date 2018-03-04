@@ -24,7 +24,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	public static function getModuleInfo() {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
-			'version' => 8,
+			'version' => '0.1.9',
 			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
 			'href' => 'https://github.com/Toutouwai/CustomInputfieldDependencies',
 			'icon' => 'eye',
@@ -61,7 +61,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	 * @param HookEvent $event
 	 */
 	protected function evaluateCustomDependencies(HookEvent $event) {
-		if($this->page->process !== 'ProcessPageEdit') return;
+		if($this->page->process !== 'ProcessPageEdit' && $this->page->process !== 'ProcessUser') return;
 
 		// Variables
 		$field = $event->object;
