@@ -9,7 +9,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
 			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
-			'version' => '0.2.0',
+			'version' => '0.2.1',
 			'href' => 'https://github.com/Toutouwai/CustomInputfieldDependencies',
 			'icon' => 'eye',
 			'autoload' => 'template=admin',
@@ -49,7 +49,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		if($field->show_if_custom_find) {
 			$matches = $pages->get("{$field->show_if_custom_find}, id={$page->id}");
 			if(!$matches->id) {
-				$this->hideInputfield($inputfield, $field,);
+				$this->hideInputfield($inputfield, $field);
 			}
 		}
 		if($field->show_if_selector) {
