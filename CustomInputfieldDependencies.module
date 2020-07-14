@@ -9,7 +9,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
 			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
-			'version' => '0.2.1',
+			'version' => '0.2.2',
 			'href' => 'https://github.com/Toutouwai/CustomInputfieldDependencies',
 			'icon' => 'eye',
 			'autoload' => 'template=admin',
@@ -113,7 +113,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	 * @param Field $field
 	 */
 	protected function hideInputfield($inputfield, $field) {
-		if($field->type == 'FieldtypeFieldsetTabOpen') {
+		if($this->isTab($field)) {
 			$this->remove_fieldset_tabs[] = $field->name;
 		} else {
 			// Set showIf to a string that is extremely unlikely to match
@@ -156,8 +156,10 @@ class CustomInputfieldDependencies extends WireData implements Module {
 
 		// Add extra show-if fields
 		$f_before = $wrapper->getChildByName('showIf');
-		// FieldsetTab is a special case
-		if(!$f_before && $field->type == 'FieldtypeFieldsetTabOpen') $f_before = $wrapper->getChildByName('visibility');
+
+		// Special cases for tabs
+		if($this->isTab($field)) $f_before = $wrapper->getChildByName('visibility');
+
 		if(!$f_before) return; // return if no showIf field
 		$f = $this->makeCustomPhpField('show_if_custom_php');
 		$f->value = $field->show_if_custom_php;
@@ -191,6 +193,18 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		$f->value = $field->required_if_custom_find;
 		$wrapper->insertAfter($f, $f_before);
 
+	}
+
+	/**
+	 * Is this field a tab-type fieldset?
+	 *
+	 * @param Field $field
+	 * @return bool
+	 */
+	protected function isTab(Field $field) {
+		if($field->type == 'FieldtypeFieldsetTabOpen') return true;
+		if($field->type == 'FieldtypeFieldsetGroup' && $field->useTabs === 1) return true;
+		return false;
 	}
 
 	/**
