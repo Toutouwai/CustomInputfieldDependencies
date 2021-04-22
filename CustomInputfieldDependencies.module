@@ -9,7 +9,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
 			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
-			'version' => '0.2.2',
+			'version' => '0.2.3',
 			'href' => 'https://github.com/Toutouwai/CustomInputfieldDependencies',
 			'icon' => 'eye',
 			'autoload' => 'template=admin',
@@ -47,14 +47,14 @@ class CustomInputfieldDependencies extends WireData implements Module {
 
 		// Evaluate show-if conditions
 		if($field->show_if_custom_find) {
-			$matches = $pages->get("{$field->show_if_custom_find}, id={$page->id}");
-			if(!$matches->id) {
+			$matches = $page->matches($field->show_if_custom_find);
+			if(!$matches) {
 				$this->hideInputfield($inputfield, $field);
 			}
 		}
 		if($field->show_if_selector) {
-			$matches = $pages->get("{$field->show_if_selector}, id={$page->id}");
-			if(!$matches->id) {
+			$matches = $page->matches($field->show_if_selector);
+			if(!$matches) {
 				$this->hideInputfield($inputfield, $field);
 			}
 		}
@@ -67,14 +67,14 @@ class CustomInputfieldDependencies extends WireData implements Module {
 
 		// Evaluate required-if conditions
 		if($field->required && $field->required_if_custom_find) {
-			$matches = $pages->get("{$field->required_if_custom_find}, id={$page->id}");
-			if(!$matches->id) {
+			$matches = $page->matches($field->required_if_custom_find);
+			if(!$matches) {
 				$inputfield->required = 0;
 			}
 		}
 		if($field->required && $field->required_if_selector) {
-			$matches = $pages->get("{$field->required_if_selector}, id={$page->id}");
-			if(!$matches->id) {
+			$matches = $page->matches($field->required_if_selector);
+			if(!$matches) {
 				$inputfield->required = 0;
 			}
 		}
