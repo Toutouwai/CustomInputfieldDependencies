@@ -9,7 +9,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
 			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
-			'version' => '0.2.3',
+			'version' => '0.2.4',
 			'href' => 'https://github.com/Toutouwai/CustomInputfieldDependencies',
 			'icon' => 'eye',
 			'autoload' => 'template=admin',
@@ -26,6 +26,59 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		$this->addHookAfter('Field::getInputfield', $this, 'evaluateCustomDependencies');
 		$this->addHookAfter('ProcessPageEdit::buildForm', $this, 'manipulatePageEdit');
 		$this->addHookAfter('Field::getConfigInputfields', $this, 'addFieldOptions');
+	}
+
+	/**
+	 * Do any "page." substitutions needed in a selector
+	 * Derived from InputfieldPage::getFindPagesSelector()
+	 *
+	 * @param Page $page
+	 * @param string $selector
+	 */
+	protected function selectorPageSubstitutions(Page $page, $selector) {
+		// Find variables identified by: page.field or page.field.subfield
+		if(strpos($selector, '=page.') !== false) {
+			preg_match_all('/=page\.([_.a-zA-Z0-9]+)/', $selector, $matches);
+			foreach($matches[0] as $key => $tag) {
+				$field = $matches[1][$key];
+				$subfield = '';
+				if(strpos($field, '.')) list($field, $subfield) = explode('.', $field);
+				$value = null;
+				if(is_null($value)) $value = $page->get($field);
+				if(is_object($value) && $subfield) $value = $value->$subfield;
+				if(is_array($value)) $value = implode('|', $value);
+				if(!strlen("$value") && (!$subfield || $subfield == 'id')) $value = '-1'; // force fail
+				$selector = str_replace($tag, "=$value", $selector);
+			}
+		}
+		return $selector;
+	}
+
+	/**
+	 * Does the supplied page match the supplied selector string?
+	 *
+	 * @param Page $page
+	 * @param string $selector
+	 * @return bool
+	 */
+	protected function pageMatchesSelector(Page $page, $selector) {
+		$need_find = false;
+		// Selector fields that are ignored by $page->matches and therefore trigger the need for a database search
+		$triggers = ['limit', 'start', 'sort', 'include'];
+		$selectors = new Selectors($selector);
+		// Check selector for trigger fields
+		foreach($selectors as $s) {
+			if(in_array($s->field, $triggers)) {
+				$need_find = true;
+				break;
+			}
+		}
+		if($need_find) {
+			$ids = $this->wire()->pages->findIDs($selector);
+			return in_array($page->id, $ids);
+		} else {
+			return $page->matches($selector);
+		}
 	}
 
 	/**
@@ -47,14 +100,14 @@ class CustomInputfieldDependencies extends WireData implements Module {
 
 		// Evaluate show-if conditions
 		if($field->show_if_custom_find) {
-			$matches = $page->matches($field->show_if_custom_find);
-			if(!$matches) {
+			if(!$this->pageMatchesSelector($page, $field->show_if_custom_find)) {
 				$this->hideInputfield($inputfield, $field);
 			}
 		}
 		if($field->show_if_selector) {
-			$matches = $page->matches($field->show_if_selector);
-			if(!$matches) {
+			// Do any "page." substitutions
+			$selector = $this->selectorPageSubstitutions($page, $field->show_if_selector);
+			if(!$this->pageMatchesSelector($page, $selector)) {
 				$this->hideInputfield($inputfield, $field);
 			}
 		}
