@@ -11,7 +11,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
 			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
-			'version' => '0.3.1',
+			'version' => '0.3.2',
 			'href' => 'https://github.com/Toutouwai/CustomInputfieldDependencies',
 			'icon' => 'eye',
 			'autoload' => 'template=admin',
@@ -66,7 +66,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 	protected function pageMatchesSelector(Page $page, $selector) {
 		$need_find = false;
 		// Selector fields that are ignored by $page->matches and therefore trigger the need for a database search
-		$triggers = ['limit', 'start', 'sort', 'include'];
+		$triggers = ['limit', 'start', 'sort', 'include', 'status'];
 		$selectors = new Selectors($selector);
 		// Check selector for trigger fields
 		foreach($selectors as $s) {
