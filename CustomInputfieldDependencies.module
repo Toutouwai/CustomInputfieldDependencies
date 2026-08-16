@@ -11,7 +11,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		return array(
 			'title' => 'Custom Inputfield Dependencies',
 			'summary' => 'Extends inputfield dependencies so that inputfield visibility or required status may be determined at runtime by selector or custom PHP code.',
-			'version' => '0.3.2',
+			'version' => '0.3.3',
 			'href' => 'https://github.com/Toutouwai/CustomInputfieldDependencies',
 			'icon' => 'eye',
 			'autoload' => 'template=admin',
@@ -298,7 +298,7 @@ class CustomInputfieldDependencies extends WireData implements Module {
 		$f->description = $description;
 		$f->icon = $icon;
 		if($field_name === 'required_if_custom_find') $f->showIf = "required>0";
-		$f->collapsed = Inputfield::collapsedBlank;
+		$f->collapsed = Inputfield::collapsedBlankAjax;
 		return $f;
 	}
 
